@@ -10,10 +10,11 @@ RUN go mod download
 # Copy the source code. Note the slash at the end, as explained in
 # https://docs.docker.com/reference/dockerfile/#copy
 COPY *.go ./
+COPY cmd ./cmd/
 COPY .env .
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux go build -o /non-sei-solo
+RUN CGO_ENABLED=0 GOOS=linux go build -o /non-sei-solo ./cmd/main.go
 
 
 # Optional:
