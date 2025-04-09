@@ -1,84 +1,217 @@
 package entities
 
 import (
+	"strings"
 	"testing"
+	"time"
 )
 
-func TestFamilyValidate(t *testing.T) {
-	tests := []struct {
-		name           string
-		family         Family
-		expectError    bool
-		expectedErrMsg string
+// Helper function to create a valid person for testing
+func validPerson() *Person {
+	return NewPerson(
+		"John",
+		"Doe",
+		parseDate("1990-01-01"),
+		"USA",
+		"123456789",
+		nil, // familyID
+		"123-4567",
+		"123 Street",
+		100, // contribution
+	)
+}
+
+// Helper function to create a person with specific ID
+func personWithID(id uint) Person {
+	person := *validPerson()
+	person.ID = id
+	return person
+}
+
+func parseDate(dateStr string) time.Time {
+	t, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		panic("Invalid date: " + err.Error())
+	}
+	return t
+}
+
+func TestFamily_Validate_Valid(t *testing.T) {
+	f := Family{
+		Name:    "Smith Family",
+		Members: []Person{personWithID(1)},
+	}
+	if err := f.validate(); err != nil {
+		t.Fatalf("expected valid family, got error: %v", err)
+	}
+}
+
+func TestFamily_Validate_Invalid(t *testing.T) {
+	cases := []struct {
+		name    string
+		family  Family
+		wantErr string
 	}{
-		{
-			name: "Empty family name",
-			family: Family{
-				Name: "",
-			},
-			expectError:    true,
-			expectedErrMsg: "name is required",
-		},
-		{
-			name: "Valid family with no members",
-			family: Family{
-				Name: "Rossi Family",
-			},
-			expectError: false,
-		},
-		{
-			name: "Valid family with valid members",
-			family: Family{
-				Name: "Rossi Family",
-				members: []Person{
-					{
-						Name:        "Giovanni",
-						Surname:     "Rossi",
-						Birthday:    "1980-05-12",
-						Citizenship: "Italian",
-					},
-					{
-						Name:        "Maria",
-						Surname:     "Rossi",
-						Birthday:    "1985-03-22",
-						Citizenship: "Italian",
-					},
-				},
-			},
-			expectError: false,
-		},
-		{
-			name: "Family with an invalid member",
-			family: Family{
-				Name: "Rossi Family",
-				members: []Person{
-					{
-						Name:        "Gi", // Invalid: less than 3 characters
-						Surname:     "Rossi",
-						Birthday:    "1980-05-12",
-						Citizenship: "Italian",
-					},
-				},
-			},
-			expectError:    true,
-			expectedErrMsg: "invalid member at index 0: name must be at least 3 characters long",
+		{"empty name", Family{Name: "", Members: []Person{personWithID(1)}}, "name is required"},
+		{"short name", Family{Name: "AB", Members: []Person{personWithID(1)}}, "name must have at least 3 characters"},
+		{"long name", Family{Name: string(make([]byte, 101)), Members: []Person{personWithID(1)}}, "name must have less than 100 characters"},
+		{"no members", Family{Name: "ValidName", Members: []Person{}}, "family must have at least one member"},
+		{"duplicate member ID", Family{
+			Name:    "ValidName",
+			Members: []Person{personWithID(1), personWithID(1)},
+		}, "duplicate member ID"},
+	}
+
+	for _, c := range cases {
+		err := c.family.validate()
+		if err == nil || err.Error() == "" || !strings.Contains(err.Error(), c.wantErr) {
+			t.Errorf("case %q: expected error to contain %q, got %v", c.name, c.wantErr, err)
+		}
+	}
+}
+
+func TestFamily_AddMember(t *testing.T) {
+	f := Family{Name: "Smith", Members: []Person{personWithID(1)}}
+
+	// Creating a new person with different ID
+	newPerson := personWithID(2)
+
+	err := f.AddMember(newPerson)
+	if err != nil {
+		t.Fatalf("expected to add valid member, got error: %v", err)
+	}
+	if len(f.Members) != 2 {
+		t.Fatalf("expected 2 members, got %d", len(f.Members))
+	}
+
+	found := false
+	for _, member := range f.Members {
+		if member.ID == 2 {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("added member not found in family members")
+	}
+}
+
+func TestFamily_AddMember_Invalid(t *testing.T) {
+	f := Family{Name: "Smith", Members: []Person{personWithID(1)}}
+
+	invalidPerson := NewPerson(
+		"", // Empty name makes the person invalid
+		"Doe",
+		parseDate("1990-01-01"),
+		"USA",
+		"123456789",
+		nil,
+		"123-4567",
+		"123 Street",
+		100,
+	)
+
+	err := f.AddMember(*invalidPerson)
+	if err == nil {
+		t.Fatal("expected error for invalid member, got nil")
+	}
+	if !strings.Contains(err.Error(), "name is required") {
+		t.Fatalf("expected error to mention invalid name, got: %v", err)
+	}
+}
+
+func TestFamily_RemoveMemberByID(t *testing.T) {
+	f := Family{
+		Name: "Test Family",
+		Members: []Person{
+			personWithID(1),
+			personWithID(2),
+			personWithID(3),
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			err := tc.family.validate()
-			if tc.expectError {
-				if err == nil {
-					t.Errorf("expected error, but got none")
-				} else if err.Error() != tc.expectedErrMsg {
-					t.Errorf("expected error message '%s', but got '%s'", tc.expectedErrMsg, err.Error())
-				}
-			} else {
-				if err != nil {
-					t.Errorf("did not expect error, but got: %s", err.Error())
-				}
-			}
-		})
+	if len(f.Members) != 3 {
+		t.Fatalf("setup failed: expected 3 members, got %d", len(f.Members))
+	}
+
+	removed := f.RemoveMemberByID(2)
+	if !removed {
+		t.Fatal("expected member to be removed, got false")
+	}
+
+	if len(f.Members) != 2 {
+		t.Fatalf("expected 2 members after removal, got %d", len(f.Members))
+	}
+
+	for _, m := range f.Members {
+		if m.ID == 2 {
+			t.Fatal("member with ID 2 was not removed")
+		}
+	}
+
+	foundIDs := map[uint]bool{}
+	for _, m := range f.Members {
+		foundIDs[m.ID] = true
+	}
+	if !foundIDs[1] || !foundIDs[3] {
+		t.Fatal("expected members with IDs 1 and 3 to remain")
+	}
+}
+
+func TestFamily_RemoveMemberByID_NotFound(t *testing.T) {
+	f := Family{
+		Name:    "Test",
+		Members: []Person{personWithID(1), personWithID(2)},
+	}
+
+	removed := f.RemoveMemberByID(999) // Non-existent ID
+	if removed {
+		t.Fatal("expected removal to return false for nonexistent member")
+	}
+
+	if len(f.Members) != 2 {
+		t.Fatalf("expected still 2 members, got %d", len(f.Members))
+	}
+}
+
+func TestFamily_UpdateName(t *testing.T) {
+	f := Family{Name: "OldName"}
+	err := f.UpdateName("NewName")
+	if err != nil {
+		t.Fatalf("expected successful update, got error: %v", err)
+	}
+	if f.Name != "NewName" {
+		t.Fatalf("expected name to be updated, got: %s", f.Name)
+	}
+}
+
+func TestFamily_UpdateName_Invalid(t *testing.T) {
+	f := Family{Name: "OldName"}
+
+	err := f.UpdateName("AB")
+	if err == nil {
+		t.Fatal("expected error for short name, got nil")
+	}
+	if !strings.Contains(err.Error(), "must have at least 3 characters") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+
+	if f.Name != "OldName" {
+		t.Fatalf("name should not have been updated, got: %s", f.Name)
+	}
+}
+
+func TestFamily_AddAttachment(t *testing.T) {
+	f := Family{Name: "Souza"}
+
+	a, err := NewAttachment("https://drive.google.com/file/d/abc123")
+	if err != nil {
+		t.Fatalf("expected valid attachment, got error: %v", err)
+	}
+
+	f.AddAttachment(*a)
+
+	if len(f.Attachments) != 1 {
+		t.Fatalf("expected 1 attachment, got %d", len(f.Attachments))
 	}
 }

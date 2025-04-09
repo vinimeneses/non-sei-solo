@@ -1,56 +1,91 @@
-package entities
+package entities_test
 
 import (
+	"api/internal/domain/entities"
 	"strings"
 	"testing"
 )
 
-func TestAttachmentValidate(t *testing.T) {
-	tests := []struct {
-		name           string
-		attachment     Attachment
-		expectError    bool
-		expectedErrMsg string
-	}{
-		{
-			name: "Empty path",
-			attachment: Attachment{
-				Path: "",
-			},
-			expectError:    true,
-			expectedErrMsg: "path is required",
-		},
-		{
-			name: "Invalid URL",
-			attachment: Attachment{
-				Path: "invalid-url",
-			},
-			expectError:    true,
-			expectedErrMsg: "invalid URL",
-		},
-		{
-			name: "Valid URL",
-			attachment: Attachment{
-				Path: "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png",
-			},
-			expectError: false,
-		},
+func TestNewValidatedAttachment_Valid(t *testing.T) {
+	attachment := &entities.Attachment{
+		Path: "https://drive.google.com/file/d/12345/view",
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			err := tc.attachment.validate()
-			if tc.expectError {
-				if err == nil {
-					t.Errorf("expected error, but got none")
-				} else if !strings.HasPrefix(err.Error(), tc.expectedErrMsg) {
-					t.Errorf("expected error message to start with '%s', but got '%s'", tc.expectedErrMsg, err.Error())
-				}
-			} else {
-				if err != nil {
-					t.Errorf("did not expect error, but got: %s", err.Error())
-				}
-			}
-		})
+	validated, err := entities.NewValidatedAttachment(attachment)
+	if err != nil {
+		t.Fatalf("expected valid attachment, got error: %v", err)
+	}
+
+	if !validated.IsValid() {
+		t.Fatal("expected attachment to be marked as valid")
+	}
+
+	if validated.Path != attachment.Path {
+		t.Errorf("expected path %q, got %q", attachment.Path, validated.Path)
+	}
+}
+
+func TestNewValidatedAttachment_EmptyPath(t *testing.T) {
+	attachment := &entities.Attachment{Path: ""}
+	_, err := entities.NewValidatedAttachment(attachment)
+	if err == nil {
+		t.Fatal("expected error for empty path, got nil")
+	}
+}
+
+func TestNewValidatedAttachment_InvalidURL(t *testing.T) {
+	attachment := &entities.Attachment{Path: "not a valid url"}
+	_, err := entities.NewValidatedAttachment(attachment)
+	if err == nil {
+		t.Fatal("expected error for invalid URL, got nil")
+	}
+}
+
+func TestValidatedAttachment_IsValid(t *testing.T) {
+	attachment := &entities.Attachment{Path: "https://drive.google.com/file/d/12345/view"}
+	validated, err := entities.NewValidatedAttachment(attachment)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !validated.IsValid() {
+		t.Error("expected attachment to be valid")
+	}
+}
+
+func TestAttachment_ValidateMethod(t *testing.T) {
+	a := &entities.Attachment{Path: "https://example.com/file"}
+	err := a.Validate()
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+
+	a2 := &entities.Attachment{Path: ""}
+	err = a2.Validate()
+	if err == nil || err.Error() != "URL is required" {
+		t.Errorf("expected 'URL is required' error, got %v", err)
+	}
+
+	a3 := &entities.Attachment{Path: "ht!tp"}
+	err = a3.Validate()
+	if err == nil || !strings.Contains(err.Error(), "invalid URL:") {
+		t.Errorf("expected invalid URL error, got %v", err)
+	}
+}
+
+func TestNewAttachment_ValidURL(t *testing.T) {
+	a, err := entities.NewAttachment("https://example.com/test")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if a.Path != "https://example.com/test" {
+		t.Errorf("expected path to be %q, got %q", "https://example.com/test", a.Path)
+	}
+}
+
+func TestNewAttachment_InvalidURL(t *testing.T) {
+	_, err := entities.NewAttachment("ht!tp://invalid-url")
+	if err == nil || !strings.Contains(err.Error(), "invalid URL:") {
+		t.Fatalf("expected invalid URL error, got: %v", err)
 	}
 }
