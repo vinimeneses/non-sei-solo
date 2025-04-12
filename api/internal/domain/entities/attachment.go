@@ -6,7 +6,7 @@ import (
 )
 
 type Attachment struct {
-	Path string `json:"url" validate:"required"`
+	Path string
 }
 
 func (a *Attachment) Validate() error {

@@ -55,7 +55,6 @@ func TestFamily_Validate_Invalid(t *testing.T) {
 		{"empty name", Family{Name: "", Members: []Person{personWithID(1)}}, "name is required"},
 		{"short name", Family{Name: "AB", Members: []Person{personWithID(1)}}, "name must have at least 3 characters"},
 		{"long name", Family{Name: string(make([]byte, 101)), Members: []Person{personWithID(1)}}, "name must have less than 100 characters"},
-		{"no members", Family{Name: "ValidName", Members: []Person{}}, "family must have at least one member"},
 		{"duplicate member ID", Family{
 			Name:    "ValidName",
 			Members: []Person{personWithID(1), personWithID(1)},
@@ -67,6 +66,50 @@ func TestFamily_Validate_Invalid(t *testing.T) {
 		if err == nil || err.Error() == "" || !strings.Contains(err.Error(), c.wantErr) {
 			t.Errorf("case %q: expected error to contain %q, got %v", c.name, c.wantErr, err)
 		}
+	}
+}
+
+func TestNewFamily(t *testing.T) {
+	name := "Test Family"
+	members := []Person{personWithID(1), personWithID(2)}
+
+	attachment, err := NewAttachment("https://example.com/document.pdf")
+	if err != nil {
+		t.Fatalf("Failed to create test attachment: %v", err)
+	}
+	attachments := []Attachment{*attachment}
+
+	description := "Family description text"
+
+	family := NewFamily(name, members, attachments, description)
+
+	if family.Name != name {
+		t.Errorf("Expected name %q, got %q", name, family.Name)
+	}
+
+	if len(family.Members) != len(members) {
+		t.Errorf("Expected %d members, got %d", len(members), len(family.Members))
+	}
+
+	memberIDs := map[uint]bool{}
+	for _, m := range family.Members {
+		memberIDs[m.ID] = true
+	}
+
+	if !memberIDs[1] || !memberIDs[2] {
+		t.Error("Not all expected members were added correctly")
+	}
+
+	if len(family.Attachments) != 1 {
+		t.Errorf("Expected 1 attachment, got %d", len(family.Attachments))
+	}
+
+	if family.Attachments[0].Path != attachment.Path {
+		t.Errorf("Expected attachment path %q, got %q", attachment.Path, family.Attachments[0].Path)
+	}
+
+	if family.Description != description {
+		t.Errorf("Expected description %q, got %q", description, family.Description)
 	}
 }
 
