@@ -2,11 +2,11 @@ package entities
 
 type ValidatedPerson struct {
 	Person
-	isValidated bool
+	IsValidated bool
 }
 
 func (vp *ValidatedPerson) IsValid() bool {
-	return vp.isValidated
+	return vp.IsValidated
 }
 
 func NewValidatedPerson(p *Person) (*ValidatedPerson, error) {
@@ -16,6 +16,6 @@ func NewValidatedPerson(p *Person) (*ValidatedPerson, error) {
 
 	return &ValidatedPerson{
 		Person:      *p,
-		isValidated: true,
+		IsValidated: true,
 	}, nil
 }

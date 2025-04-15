@@ -6,18 +6,12 @@ import (
 	"gorm.io/gorm"
 )
 
-type Attachment struct {
-	ID       uint `gorm:"primaryKey"`
-	Path     string
-	FamilyID uint
-}
-
 type Family struct {
 	gorm.Model
 	Name        string
-	Members     []Person     `gorm:"foreignKey:FamilyID"`
-	Attachments []Attachment `gorm:"foreignKey:FamilyID"`
-	Description string       `gorm:"-"`
+	Members     []Person     `gorm:"foreignKey:FamilyID;constraint:OnDelete:CASCADE"`
+	Attachments []Attachment `gorm:"foreignKey:FamilyID;constraint:OnDelete:CASCADE"`
+	Description string       `gorm:"-"` // ignored by gorm
 }
 
 type Person struct {
@@ -28,8 +22,14 @@ type Person struct {
 	Citizenship  string
 	TaxCode      string
 	FamilyID     *uint
-	Family       Family `gorm:"foreignKey:FamilyID"`
+	Family       Family
 	PhoneNumber  string
 	Address      string
 	Contribution float64
+}
+
+type Attachment struct {
+	ID       uint `gorm:"primaryKey"`
+	Path     string
+	FamilyID uint
 }

@@ -7,7 +7,9 @@ import (
 
 func toDBPerson(validatedPerson *entities.ValidatedPerson) *Person {
 	return &Person{
-		Model:        gorm.Model{},
+		Model: gorm.Model{
+			ID: validatedPerson.ID,
+		},
 		Name:         validatedPerson.Name,
 		Surname:      validatedPerson.Surname,
 		Birthday:     validatedPerson.Birthday,

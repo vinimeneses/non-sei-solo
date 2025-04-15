@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"gorm.io/gorm"
-	"strconv"
 )
 
 type GormPersonRepository struct {
@@ -17,13 +16,9 @@ func NewGormPersonRepository(db *gorm.DB) repositories.PersonRepository {
 	return &GormPersonRepository{db: db}
 }
 
-func (g *GormPersonRepository) Create(person *entities.Person) (*entities.Person, error) {
-	validatedPerson, err := entities.NewValidatedPerson(person)
-	if err != nil {
-		return nil, err
-	}
+func (g *GormPersonRepository) Create(person *entities.ValidatedPerson) (*entities.Person, error) {
 
-	dbPerson := toDBPerson(validatedPerson)
+	dbPerson := toDBPerson(person)
 	if err := g.db.Create(dbPerson).Error; err != nil {
 		return nil, err
 	}
@@ -31,17 +26,12 @@ func (g *GormPersonRepository) Create(person *entities.Person) (*entities.Person
 	return toDomainPerson(dbPerson), nil
 }
 
-func (g *GormPersonRepository) FindById(id string) (*entities.Person, error) {
+func (g *GormPersonRepository) FindById(id uint) (*entities.Person, error) {
 	var dbPerson Person
 
-	uintID, err := strconv.ParseUint(id, 10, 32)
-	if err != nil {
-		return nil, fmt.Errorf("invalid ID format: %v", err)
-	}
-
-	if err := g.db.First(&dbPerson, uint(uintID)).Error; err != nil {
+	if err := g.db.First(&dbPerson, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("person with ID %s not found", id)
+			return nil, fmt.Errorf("person with ID %d not found", id)
 		}
 		return nil, err
 	}
@@ -65,33 +55,36 @@ func (g *GormPersonRepository) FindAll() ([]*entities.Person, error) {
 	return result, nil
 }
 
-func (g *GormPersonRepository) Update(person *entities.Person) (*entities.Person, error) {
-	validatedPerson, err := entities.NewValidatedPerson(person)
-	if err != nil {
+func (g *GormPersonRepository) Update(vp *entities.ValidatedPerson) (*entities.Person, error) {
+	dbPerson := toDBPerson(vp)
+
+	if err := g.db.
+		Model(&dbPerson).
+		Select("*").
+		Where("id = ?", dbPerson.ID).
+		Updates(dbPerson).
+		Error; err != nil {
 		return nil, err
 	}
 
-	dbPerson := toDBPerson(validatedPerson)
-	if err := g.db.Save(dbPerson).Error; err != nil {
+	if err := g.db.
+		Where("id = ?", dbPerson.ID).
+		First(&dbPerson).
+		Error; err != nil {
 		return nil, err
 	}
 
 	return toDomainPerson(dbPerson), nil
 }
 
-func (g *GormPersonRepository) Delete(id string) error {
-	uintID, err := strconv.ParseUint(id, 10, 32)
-	if err != nil {
-		return fmt.Errorf("invalid ID format: %v", err)
-	}
-
-	result := g.db.Delete(&Person{}, uint(uintID))
+func (g *GormPersonRepository) Delete(id uint) error {
+	result := g.db.Delete(&Person{}, id)
 	if result.Error != nil {
 		return result.Error
 	}
 
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("person with ID %s not found", id)
+		return fmt.Errorf("person with ID %d not found", id)
 	}
 
 	return nil

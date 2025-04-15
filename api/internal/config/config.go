@@ -10,7 +10,7 @@ import (
 
 type Repositories struct {
 	PersonRepository repositories.PersonRepository
-	//FamilyRepository repositories.FamilyRepository
+	FamilyRepository repositories.FamilyRepository
 }
 
 func Setup() *Repositories {
@@ -27,8 +27,8 @@ func Setup() *Repositories {
 	}
 
 	err = db.AutoMigrate(
-		&postgres2.Person{},
 		&postgres2.Family{},
+		&postgres2.Person{},
 		&postgres2.Attachment{},
 	)
 	if err != nil {
@@ -37,6 +37,6 @@ func Setup() *Repositories {
 
 	return &Repositories{
 		PersonRepository: postgres2.NewGormPersonRepository(db),
-		//FamilyRepository: postgres2.NewGormFamilyRepository(db),
+		FamilyRepository: postgres2.NewGormFamilyRepository(db),
 	}
 }
