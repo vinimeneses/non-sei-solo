@@ -6,8 +6,8 @@ import (
 
 type Family struct {
 	ID          uint
-	Members     []Person
 	Name        string
+	Members     []Person
 	Attachments []Attachment
 	Description string
 }
@@ -35,20 +35,31 @@ func (f *Family) validate() error {
 	return nil
 }
 
-func NewFamily(name string, members []Person, attachments []Attachment, description string) *Family {
-	return &Family{
+func NewFamily(name string, validatedMembers []*ValidatedPerson, validatedAttachments []*ValidatedAttachment, description string) (*Family, error) {
+	var members []Person
+	for _, vPerson := range validatedMembers {
+		members = append(members, vPerson.Person)
+	}
+
+	var attachments []Attachment
+	for _, vAttachment := range validatedAttachments {
+		attachments = append(attachments, vAttachment.Attachment)
+	}
+
+	family := &Family{
 		Name:        name,
 		Members:     members,
 		Attachments: attachments,
 		Description: description,
 	}
+	return family, nil
 }
 
-func (f *Family) AddMember(p Person) error {
-	if err := p.validate(); err != nil {
-		return fmt.Errorf("cannot add invalid person: %v", err)
+func (f *Family) AddMember(vp *ValidatedPerson) error {
+	if err := vp.Person.validate(); err != nil {
+		return fmt.Errorf("cannot add invalid member: %v", err)
 	}
-	f.Members = append(f.Members, p)
+	f.Members = append(f.Members, vp.Person)
 	return nil
 }
 
@@ -70,6 +81,6 @@ func (f *Family) UpdateName(newName string) error {
 	return nil
 }
 
-func (f *Family) AddAttachment(a Attachment) {
-	f.Attachments = append(f.Attachments, a)
+func (f *Family) AddAttachment(vAttachment *ValidatedAttachment) {
+	f.Attachments = append(f.Attachments, vAttachment.Attachment)
 }

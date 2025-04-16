@@ -6,28 +6,6 @@ import (
 	"time"
 )
 
-// Helper function to create a valid person for testing
-func validPerson() *Person {
-	return NewPerson(
-		"John",
-		"Doe",
-		parseDate("1990-01-01"),
-		"USA",
-		"123456789",
-		nil, // familyID
-		"123-4567",
-		"123 Street",
-		100, // contribution
-	)
-}
-
-// Helper function to create a person with specific ID
-func personWithID(id uint) Person {
-	person := *validPerson()
-	person.ID = id
-	return person
-}
-
 func parseDate(dateStr string) time.Time {
 	t, err := time.Parse("2006-01-02", dateStr)
 	if err != nil {
@@ -36,10 +14,49 @@ func parseDate(dateStr string) time.Time {
 	return t
 }
 
+func validValidatedPerson() *ValidatedPerson {
+	p := NewPerson(
+		"John",
+		"Doe",
+		parseDate("1990-01-01"),
+		"USA",
+		"123456789",
+		nil, // familyID
+		"123-4567",
+		"123 Street",
+		100,
+	)
+	vp, err := NewValidatedPerson(p)
+	if err != nil {
+		panic("failed to validate person: " + err.Error())
+	}
+	return vp
+}
+
+func validatedPersonWithID(id uint) *ValidatedPerson {
+	p := NewPerson(
+		"John",
+		"Doe",
+		parseDate("1990-01-01"),
+		"USA",
+		"123456789",
+		nil,
+		"123-4567",
+		"123 Street",
+		100,
+	)
+	p.ID = id
+	vp, err := NewValidatedPerson(p)
+	if err != nil {
+		panic("failed to validate person: " + err.Error())
+	}
+	return vp
+}
+
 func TestFamily_Validate_Valid(t *testing.T) {
 	f := Family{
 		Name:    "Smith Family",
-		Members: []Person{personWithID(1)},
+		Members: []Person{validatedPersonWithID(1).Person},
 	}
 	if err := f.validate(); err != nil {
 		t.Fatalf("expected valid family, got error: %v", err)
@@ -52,12 +69,12 @@ func TestFamily_Validate_Invalid(t *testing.T) {
 		family  Family
 		wantErr string
 	}{
-		{"empty name", Family{Name: "", Members: []Person{personWithID(1)}}, "name is required"},
-		{"short name", Family{Name: "AB", Members: []Person{personWithID(1)}}, "name must have at least 3 characters"},
-		{"long name", Family{Name: string(make([]byte, 101)), Members: []Person{personWithID(1)}}, "name must have less than 100 characters"},
+		{"empty name", Family{Name: "", Members: []Person{validatedPersonWithID(1).Person}}, "name is required"},
+		{"short name", Family{Name: "AB", Members: []Person{validatedPersonWithID(1).Person}}, "name must have at least 3 characters"},
+		{"long name", Family{Name: string(make([]byte, 101)), Members: []Person{validatedPersonWithID(1).Person}}, "name must have less than 100 characters"},
 		{"duplicate member ID", Family{
 			Name:    "ValidName",
-			Members: []Person{personWithID(1), personWithID(1)},
+			Members: []Person{validatedPersonWithID(1).Person, validatedPersonWithID(1).Person},
 		}, "duplicate member ID"},
 	}
 
@@ -71,64 +88,72 @@ func TestFamily_Validate_Invalid(t *testing.T) {
 
 func TestNewFamily(t *testing.T) {
 	name := "Test Family"
-	members := []Person{personWithID(1), personWithID(2)}
+	members := []*ValidatedPerson{validatedPersonWithID(1), validatedPersonWithID(2)}
 
 	attachment, err := NewAttachment("https://example.com/document.pdf")
 	if err != nil {
-		t.Fatalf("Failed to create test attachment: %v", err)
+		t.Fatalf("failed to create test attachment: %v", err)
 	}
-	attachments := []Attachment{*attachment}
+	vAttachment, err := NewValidatedAttachment(attachment)
+	if err != nil {
+		t.Fatalf("failed to validate attachment: %v", err)
+	}
+	attachments := []*ValidatedAttachment{vAttachment}
 
 	description := "Family description text"
 
-	family := NewFamily(name, members, attachments, description)
+	family, err := NewFamily(name, members, attachments, description)
+	if err != nil {
+		t.Fatalf("failed to create family: %v", err)
+	}
 
 	if family.Name != name {
-		t.Errorf("Expected name %q, got %q", name, family.Name)
+		t.Errorf("expected name %q, got %q", name, family.Name)
 	}
 
 	if len(family.Members) != len(members) {
-		t.Errorf("Expected %d members, got %d", len(members), len(family.Members))
+		t.Errorf("expected %d members, got %d", len(members), len(family.Members))
 	}
 
 	memberIDs := map[uint]bool{}
 	for _, m := range family.Members {
 		memberIDs[m.ID] = true
 	}
-
 	if !memberIDs[1] || !memberIDs[2] {
-		t.Error("Not all expected members were added correctly")
+		t.Error("not all expected members were added correctly")
 	}
 
 	if len(family.Attachments) != 1 {
-		t.Errorf("Expected 1 attachment, got %d", len(family.Attachments))
+		t.Errorf("expected 1 attachment, got %d", len(family.Attachments))
 	}
-
+	// Assuming Attachment has a field 'Path'
 	if family.Attachments[0].Path != attachment.Path {
-		t.Errorf("Expected attachment path %q, got %q", attachment.Path, family.Attachments[0].Path)
+		t.Errorf("expected attachment path %q, got %q", attachment.Path, family.Attachments[0].Path)
 	}
 
 	if family.Description != description {
-		t.Errorf("Expected description %q, got %q", description, family.Description)
+		t.Errorf("expected description %q, got %q", description, family.Description)
 	}
 }
 
 func TestFamily_AddMember(t *testing.T) {
-	f := Family{Name: "Smith", Members: []Person{personWithID(1)}}
+	members := []*ValidatedPerson{validatedPersonWithID(1)}
+	family, err := NewFamily("Smith", members, nil, "")
+	if err != nil {
+		t.Fatalf("failed to create family: %v", err)
+	}
 
-	// Creating a new person with different ID
-	newPerson := personWithID(2)
-
-	err := f.AddMember(newPerson)
+	newVP := validatedPersonWithID(2)
+	err = family.AddMember(newVP)
 	if err != nil {
 		t.Fatalf("expected to add valid member, got error: %v", err)
 	}
-	if len(f.Members) != 2 {
-		t.Fatalf("expected 2 members, got %d", len(f.Members))
+	if len(family.Members) != 2 {
+		t.Fatalf("expected 2 members, got %d", len(family.Members))
 	}
 
 	found := false
-	for _, member := range f.Members {
+	for _, member := range family.Members {
 		if member.ID == 2 {
 			found = true
 			break
@@ -140,21 +165,16 @@ func TestFamily_AddMember(t *testing.T) {
 }
 
 func TestFamily_AddMember_Invalid(t *testing.T) {
-	f := Family{Name: "Smith", Members: []Person{personWithID(1)}}
+	members := []*ValidatedPerson{validatedPersonWithID(1)}
+	family, err := NewFamily("Smith", members, nil, "")
+	if err != nil {
+		t.Fatalf("failed to create family: %v", err)
+	}
 
-	invalidPerson := NewPerson(
-		"", // Empty name makes the person invalid
-		"Doe",
-		parseDate("1990-01-01"),
-		"USA",
-		"123456789",
-		nil,
-		"123-4567",
-		"123 Street",
-		100,
-	)
+	vp := validValidatedPerson()
+	vp.Person.Name = "" // Invalidate the person by clearing the name
 
-	err := f.AddMember(*invalidPerson)
+	err = family.AddMember(vp)
 	if err == nil {
 		t.Fatal("expected error for invalid member, got nil")
 	}
@@ -164,36 +184,38 @@ func TestFamily_AddMember_Invalid(t *testing.T) {
 }
 
 func TestFamily_RemoveMemberByID(t *testing.T) {
-	f := Family{
-		Name: "Test Family",
-		Members: []Person{
-			personWithID(1),
-			personWithID(2),
-			personWithID(3),
-		},
+	// Create a family with 3 members.
+	members := []*ValidatedPerson{
+		validatedPersonWithID(1),
+		validatedPersonWithID(2),
+		validatedPersonWithID(3),
+	}
+	family, err := NewFamily("Test Family", members, nil, "")
+	if err != nil {
+		t.Fatalf("failed to create family: %v", err)
 	}
 
-	if len(f.Members) != 3 {
-		t.Fatalf("setup failed: expected 3 members, got %d", len(f.Members))
+	if len(family.Members) != 3 {
+		t.Fatalf("setup failed: expected 3 members, got %d", len(family.Members))
 	}
 
-	removed := f.RemoveMemberByID(2)
+	removed := family.RemoveMemberByID(2)
 	if !removed {
 		t.Fatal("expected member to be removed, got false")
 	}
 
-	if len(f.Members) != 2 {
-		t.Fatalf("expected 2 members after removal, got %d", len(f.Members))
+	if len(family.Members) != 2 {
+		t.Fatalf("expected 2 members after removal, got %d", len(family.Members))
 	}
 
-	for _, m := range f.Members {
+	for _, m := range family.Members {
 		if m.ID == 2 {
 			t.Fatal("member with ID 2 was not removed")
 		}
 	}
 
 	foundIDs := map[uint]bool{}
-	for _, m := range f.Members {
+	for _, m := range family.Members {
 		foundIDs[m.ID] = true
 	}
 	if !foundIDs[1] || !foundIDs[3] {
@@ -202,36 +224,43 @@ func TestFamily_RemoveMemberByID(t *testing.T) {
 }
 
 func TestFamily_RemoveMemberByID_NotFound(t *testing.T) {
-	f := Family{
-		Name:    "Test",
-		Members: []Person{personWithID(1), personWithID(2)},
+	members := []*ValidatedPerson{validatedPersonWithID(1), validatedPersonWithID(2)}
+	family, err := NewFamily("Test", members, nil, "")
+	if err != nil {
+		t.Fatalf("failed to create family: %v", err)
 	}
 
-	removed := f.RemoveMemberByID(999) // Non-existent ID
+	removed := family.RemoveMemberByID(999) // Non-existent ID
 	if removed {
 		t.Fatal("expected removal to return false for nonexistent member")
 	}
 
-	if len(f.Members) != 2 {
-		t.Fatalf("expected still 2 members, got %d", len(f.Members))
+	if len(family.Members) != 2 {
+		t.Fatalf("expected still 2 members, got %d", len(family.Members))
 	}
 }
 
 func TestFamily_UpdateName(t *testing.T) {
-	f := Family{Name: "OldName"}
-	err := f.UpdateName("NewName")
+	family, err := NewFamily("OldName", []*ValidatedPerson{}, nil, "")
+	if err != nil {
+		t.Fatalf("failed to create family: %v", err)
+	}
+	err = family.UpdateName("NewName")
 	if err != nil {
 		t.Fatalf("expected successful update, got error: %v", err)
 	}
-	if f.Name != "NewName" {
-		t.Fatalf("expected name to be updated, got: %s", f.Name)
+	if family.Name != "NewName" {
+		t.Fatalf("expected name to be updated, got: %s", family.Name)
 	}
 }
 
 func TestFamily_UpdateName_Invalid(t *testing.T) {
-	f := Family{Name: "OldName"}
+	family, err := NewFamily("OldName", []*ValidatedPerson{}, nil, "")
+	if err != nil {
+		t.Fatalf("failed to create family: %v", err)
+	}
 
-	err := f.UpdateName("AB")
+	err = family.UpdateName("AB")
 	if err == nil {
 		t.Fatal("expected error for short name, got nil")
 	}
@@ -239,22 +268,26 @@ func TestFamily_UpdateName_Invalid(t *testing.T) {
 		t.Fatalf("unexpected error message: %v", err)
 	}
 
-	if f.Name != "OldName" {
-		t.Fatalf("name should not have been updated, got: %s", f.Name)
+	if family.Name != "OldName" {
+		t.Fatalf("name should not have been updated, got: %s", family.Name)
 	}
 }
 
 func TestFamily_AddAttachment(t *testing.T) {
-	f := Family{Name: "Souza"}
-
-	a, err := NewAttachment("https://drive.google.com/file/d/abc123")
+	family, err := NewFamily("Souza", []*ValidatedPerson{}, nil, "")
+	if err != nil {
+		t.Fatalf("failed to create family: %v", err)
+	}
+	attachment, err := NewAttachment("https://drive.google.com/file/d/abc123")
 	if err != nil {
 		t.Fatalf("expected valid attachment, got error: %v", err)
 	}
-
-	f.AddAttachment(*a)
-
-	if len(f.Attachments) != 1 {
-		t.Fatalf("expected 1 attachment, got %d", len(f.Attachments))
+	vAttachment, err := NewValidatedAttachment(attachment)
+	if err != nil {
+		t.Fatalf("failed to validate attachment: %v", err)
+	}
+	family.AddAttachment(vAttachment)
+	if len(family.Attachments) != 1 {
+		t.Fatalf("expected 1 attachment, got %d", len(family.Attachments))
 	}
 }

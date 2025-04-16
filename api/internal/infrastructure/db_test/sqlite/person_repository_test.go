@@ -3,32 +3,12 @@ package sqlite_test
 import (
 	"api/internal/domain/entities"
 	"api/internal/infrastructure/db/postgres"
-	"gorm.io/gorm/logger"
 	"testing"
 	"time"
 
-	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
-
-func setupTestDB(t *testing.T) (*gorm.DB, func()) {
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
-	})
-	require.NoError(t, err)
-
-	err = db.AutoMigrate(&postgres.Person{})
-	require.NoError(t, err)
-
-	return db, func() {
-		sqlDB, err := db.DB()
-		if err == nil {
-			_ = sqlDB.Close()
-		}
-	}
-}
 
 func createValidatedPerson(name, surname, citizenship string, birthday time.Time, ids ...uint) *entities.ValidatedPerson {
 	person := entities.NewPerson(
