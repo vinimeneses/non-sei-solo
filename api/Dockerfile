@@ -3,26 +3,33 @@ FROM golang:1.23.0-alpine AS build
 # Set destination for COPY
 WORKDIR /app
 
-# Download Go modules
+# download dependencies
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy the source code. Note the slash at the end, as explained in
-# https://docs.docker.com/reference/dockerfile/#copy
-COPY *.go ./
-COPY cmd ./cmd/
-COPY .env .
+# copy the files to the container
+COPY . .
 
-# Build
+# Compile the application
 RUN CGO_ENABLED=0 GOOS=linux go build -o /non-sei-solo ./cmd/main.go
 
 
-# Optional:
-# To bind to a TCP port, runtime parameters must be supplied to the docker command.
-# But we can document in the Dockerfile what ports
-# the application is going to listen on by default.
-# https://docs.docker.com/reference/dockerfile/#expose
+# Stage 2: Create a minimal production image
+FROM alpine:latest
+
+# Install dependencies for the application
+RUN apk add --no-cache sqlite-libs
+
+# create a directory for the application
+WORKDIR /app
+
+# Copy the application from stage 1
+COPY --from=build /non-sei-solo /non-sei-solo
+
+# Copy .env file
+COPY .env .env
+
 EXPOSE 1323
 
-# Run
+# run the application
 CMD ["/non-sei-solo"]
