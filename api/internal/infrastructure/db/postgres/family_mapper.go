@@ -30,7 +30,9 @@ func toDBFamily(family *entities.ValidatedFamily) *Family {
 	}
 
 	return &Family{
-		Model:       gorm.Model{},
+		Model: gorm.Model{
+			ID: family.ID,
+		},
 		Members:     dbMembers,
 		Name:        family.Name,
 		Attachments: dbAttachments,
