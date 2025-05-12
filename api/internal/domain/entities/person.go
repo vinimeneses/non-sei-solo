@@ -38,7 +38,6 @@ func (p *Person) validate() error {
 	if p.Citizenship == "" {
 		return fmt.Errorf("citizenship is required")
 	}
-
 	if p.Contribution < 0 {
 		return fmt.Errorf("contribution cannot be negative")
 	}
